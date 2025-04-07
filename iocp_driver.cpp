@@ -9,6 +9,7 @@
 namespace IOCP_DRIVER {
 
 	const DWORD IOCP_EXIT = -1;
+	const DWORD IOCP_CLOSE_NODE = -2;
 
 	// IO端口工作模式，工作线程以此决定行为
 	enum IOType {
@@ -276,17 +277,24 @@ namespace IOCP_DRIVER {
 		post_send(node_ctx, io_ctx);
 	}
 
-	void iocp_driver::close_node(SOCKET fd) {
-		node_context* node_ctx = nullptr;
-		{
-			std::lock_guard<std::mutex> lock(_node_mtx);
-			if (_nodes.find(fd) == _nodes.end()) {
-				return;
-			}
-			node_ctx = _nodes[fd];
+	void iocp_driver::send_data_raw(SOCKET fd, unsigned char* buff, int len) {
+		std::lock_guard<std::mutex> lock(_node_mtx);
+		if (_nodes.find(fd) == _nodes.end()) {
+			delete[] buff;
+			return;
 		}
-		if(node_ctx)
-			close_node(node_ctx);
+		node_context* node_ctx = _nodes[fd];
+
+        IO_context* io_ctx = node_ctx->create_new_io();
+		io_ctx->fd = node_ctx->fd;
+		io_ctx->io_type = IO_SEND;
+		io_ctx->wsa_buff.buf = (char*)buff;
+		io_ctx->wsa_buff.len = len;
+		post_send(node_ctx, io_ctx);
+	}
+
+	void iocp_driver::close_node(SOCKET fd) {
+		PostQueuedCompletionStatus(_iocp, (DWORD)(fd), (DWORD)IOCP_CLOSE_NODE, NULL);
 	}
 
     int iocp_driver::post_accept(node_context* node_ctx, IO_context* io_ctx){
@@ -345,6 +353,12 @@ namespace IOCP_DRIVER {
 			
 			if (IOCP_EXIT == (DWORD)node_ctx){
 				break;
+			}
+			if (IOCP_CLOSE_NODE == (DWORD)node_ctx) {
+				SOCKET fd = (SOCKET)bytes;
+				if (INVALID_SOCKET != fd)
+					closesocket(fd);
+				continue;
 			}
 
 			if (!ok) {

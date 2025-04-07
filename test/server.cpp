@@ -1,7 +1,7 @@
 ﻿#include "iocp_driver.h"
 #include <iostream>
 #include <winsock2.h>
-
+#include <string>
 
 
 int main() {
@@ -29,8 +29,11 @@ int main() {
 			[&](SOCKET fd, unsigned char* buff, int cur_len) {
 				int ret = cur_len;
 				if (ret > 0) {
-					server.send_data(fd, buff, ret);
-					return ret;
+					if (std::string((char*)buff, cur_len) == "killme") {
+						server.close_node(fd);
+					} else {
+						server.send_data(fd, buff, ret);
+					}return ret;
 				}
 				return -1;
 			},

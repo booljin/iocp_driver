@@ -48,6 +48,8 @@ public:
 	int connect_to(const std::string& addr, int port, int protocol_id);
 	// 往对应节点发送指定信息。应用层知道数据格式，所以这里不需要区分协议
 	void send_data(SOCKET fd, unsigned char* buff, int len);
+	// 与上一接口的区别是不会复制数据，直接使用数据块内存地址。发送端不可自己回收内存
+	void send_data_raw(SOCKET fd, unsigned char* buff, int len);
 	// 引用层主动关闭一个连接
 	void close_node(SOCKET fd);
 protected:
